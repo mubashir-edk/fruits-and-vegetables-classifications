@@ -15,7 +15,7 @@ from tensorflow.keras.optimizers import Adam, Adamax
 
 router = APIRouter()
 
-@router.get("/")
+# @router.get("/train")
 # Define paths
 def define_paths(data_dir):
     filepaths = []
@@ -33,29 +33,18 @@ def define_paths(data_dir):
             
     return filepaths, labels
 
-data_dir = ""
-
-# Concatenate data paths with labels into one dataframe
-def define_df(files, classes):
-    folder_series = pd.Series(files, name='filepaths')
-    label_series = pd.Series(classes, name='labels')
-    
-    return pd.concat([folder_series, label_series], axis=1)
 
 # Splitting data
-def split_data(data_dir):
-    # train dataframe
-    files, classes = define_paths(data_dir)
-    df = define_df(files, classes)
-    stratify_df = df['labels']
-    train_df, dummy_df = train_test_split(df, train_size=0.8, shuffle=True, random_state=123, stratify=stratify_df)
+def split_data(files, classes):
+    stratify = classes
+    train_data, remain_data = train_test_split(files, train_size=0.8, shuffle=True, random_state=123, stratify=stratify)
     
     # valid and test dataframe
-    stratify_df = dummy_df['labels']
-    valid_df, test_df = train_test_split(dummy_df, train_size=0.5, shuffle=True, random_state=123, stratify=stratify_df)
-    return train_df, valid_df, test_df
+    stratify = remain_data['labels']
+    valid_data, test_data = train_test_split(remain_data, test_size=0.5, shuffle=True, random_state=123, stratify=stratify)
+    return train_data, valid_data, test_data
 
-def create_generators(train_df, valid_df, test_df, batch_size):
+def create_generators(train_data, valid_data, test_data, batch_size):
     
     '''
         This function takes train, validation, and test dataframe and fit them into image data generator, 
@@ -69,7 +58,7 @@ def create_generators(train_df, valid_df, test_df, batch_size):
     img_shape = (img_size[0], img_size[1], channels)
     
     # Recommended : use custom function for test data batch size, else we can use normal batch size.
-    ts_length = len(test_df)
+    ts_length = len(test_data)
     test_batch_size = max(sorted([ts_length // n for n in range(1, ts_length + 1) if ts_length % n == 0 and ts_length / n <= 80]))
     test_steps = ts_length // test_batch_size
     
@@ -80,8 +69,8 @@ def create_generators(train_df, valid_df, test_df, batch_size):
     tr_gen = ImageDataGenerator(preprocessing_function=scalar, horizontal_flip=True)
     ts_gen = ImageDataGenerator(preprocessing_function=scalar)
     
-    train_gen = tr_gen.flow_from_dataframe(
-        train_df,
+    train_gen = tr_gen.flow_from_directory(
+        train_data,
         x_col='filepaths',
         y_col='labels',
         target_size=img_size,
@@ -91,8 +80,8 @@ def create_generators(train_df, valid_df, test_df, batch_size):
         batch_size=batch_size
     )
     
-    valid_gen = ts_gen.flow_from_dataframe(
-        valid_df,
+    valid_gen = ts_gen.flow_from_directory(
+        valid_data,
         x_col='filepaths',
         y_col='labels',
         target_size=img_size,
@@ -103,8 +92,8 @@ def create_generators(train_df, valid_df, test_df, batch_size):
     )
     
     # Note: we will use custom test_batch_size and make shuffle=False
-    test_gen = ts_gen.flow_from_dataframe(
-        test_df,
+    test_gen = ts_gen.flow_from_directory(
+        test_data,
         x_col='filepaths',
         y_col='labels',
         target_size=img_size,
@@ -115,36 +104,6 @@ def create_generators(train_df, valid_df, test_df, batch_size):
     )
     
     return train_gen, valid_gen, test_gen
-
-def show_images(gen):
-    
-    '''
-        This function take the data generator and show samples of the images
-    '''
-    
-    # return classes , images to be displayed
-    g_dict = gen.class_indices        # defines dictionary {'class': index}
-    
-    # defines list of dictionary's kays (classes), classes names : string
-    classes = list(g_dict.keys())
-    
-    # get a batch size samples from the generator
-    images, labels = next(gen)
-    
-    # calculate number of displayed samples
-    length = len(labels)        # length of batch size
-    sample = min(length, 25)    # check if sample less than 25 images
-    plt.figure(figsize=(20, 20))
-    for i in range(sample):
-        plt.subplot(5, 5, i + 1)
-        image = images[i] / 255       # scales data to range (0 - 255)
-        plt.imshow(image)
-        index = np.argmax(labels[i])  # get image index
-        class_name = classes[index]   # get class of image
-        plt.title(class_name, color='blue', fontsize=12)
-        plt.axis('off')
-    plt.show()
-    
     
 class MyCallback(keras.callbacks.Callback):
     def __init__(self, model, patience, stop_patience, threshold, factor, batches, epochs, ask_epoch):
@@ -331,20 +290,20 @@ class MyCallback(keras.callbacks.Callback):
                         except Exception:
                             print('Invalid')
                             
-
-data_dir = os.getenv("dataset_s3_url")
+                            
 # data set path
+# data_dir = os.path.dir("../artifacts/dataset/images")
 
-try:
-    # Get splitted data
-    train_df, valid_df, test_df = split_data(data_dir)
-    # Get Generators
-    batch_size = 40
-    train_gen, valid_gen, test_gen = create_generators(
-        train_df, valid_df, test_df, batch_size)
+# try:
+#     # Get splitted data
+#     train_df, valid_df, test_df = split_data(data_dir)
+#     # Get Generators
+#     batch_size = 0
+#     train_gen, valid_gen, test_gen = create_generators(
+#         train_df, valid_df, test_df, batch_size)
 
-except:
-    print('Invalid Input')
+# except:
+    # print('Invalid Input')
 
 
 # Create Model Structure
@@ -356,23 +315,20 @@ class_count = len(list(train_gen.class_indices.keys()))
 
 # create pre-trained model (you can built on pretrained model such as :  efficientnet, VGG , Resnet )
 # we will use efficientnetb3 from EfficientNet family.
-base_model = tf.keras.applications.MobileNetV2(
-    include_top=False, weights="imagenet", input_shape=img_shape, pooling='max')
+base_model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=img_shape, pooling='max')
 model = Sequential([
     base_model,
     BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001),
-    Dense(256, kernel_regularizer=regularizers.l2(l=0.016), activity_regularizer=regularizers.l1(0.006),
-          bias_regularizer=regularizers.l1(0.006), activation='relu'),
+    Dense(256, kernel_regularizer=regularizers.l2(l=0.016), activity_regularizer=regularizers.l1(0.006), bias_regularizer=regularizers.l1(0.006), activation='relu'),
     Dropout(rate=0.45, seed=123),
     Dense(class_count, activation='softmax')
 ])
 
-model.compile(Adamax(learning_rate=0.001),
-              loss='categorical_crossentropy', metrics=['accuracy'])
+model.compile(Adamax(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
 model.summary()
 
 # call back parameters
-batch_size = 40   # set batch size for training
+batch_size = 0   # set batch size for training
 epochs = 40   # number of all epochs in training
 patience = 1  # number of epochs to wait to adjust lr if monitored value does not improve
 # number of epochs to wait before stopping training if monitored value does not improve
@@ -383,19 +339,16 @@ ask_epoch = 5   # number of epochs to run before asking if you want to halt trai
 # number of training batch to run per epoch
 batches = int(np.ceil(len(train_gen.labels) / batch_size))
 
-callbacks = [MyCallback(model=model, patience=patience, stop_patience=stop_patience, threshold=threshold,
-                        factor=factor, batches=batches, epochs=epochs, ask_epoch=ask_epoch)]
+callbacks = [MyCallback(model=model, patience=patience, stop_patience=stop_patience, threshold=threshold, factor=factor, batches=batches, epochs=epochs, ask_epoch=ask_epoch)]
 
 
 # train model
-history = model.fit(x=train_gen, epochs=epochs, verbose=0, callbacks=callbacks,
-                    validation_data=valid_gen, validation_steps=None, shuffle=False)
+history = model.fit(x=train_gen, epochs=epochs, verbose=0, callbacks=callbacks, validation_data=valid_gen, validation_steps=None, shuffle=False)
 
 
 # test and evaluate
 ts_length = len(test_df)
-test_batch_size = test_batch_size = max(sorted(
-    [ts_length // n for n in range(1, ts_length + 1) if ts_length % n == 0 and ts_length/n <= 80]))
+test_batch_size = test_batch_size = max(sorted([ts_length // n for n in range(1, ts_length + 1) if ts_length % n == 0 and ts_length/n <= 80]))
 test_steps = ts_length // test_batch_size
 
 train_score = model.evaluate(train_gen, steps=test_steps, verbose=1)
@@ -433,3 +386,25 @@ weight_save_id = str(f'{model_name}-{subject}-weights.h5')
 weights_save_loc = os.path.join(save_path, weight_save_id)
 model.save_weights(weights_save_loc)
 print(f'weights were saved as {weights_save_loc}')
+
+def train_model(train_gen, valid_gen, test_gen):
+    
+    img_size = (224, 224)
+    channels = 3
+    img_shape = (img_size[0], img_size[1], channels)
+    # to define number of classes in dense layer
+    class_count = len(list(train_gen.class_indices.keys()))
+    
+    base_model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=img_shape, pooling='max')
+    model = Sequential([
+        base_model,
+        BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001),
+        Dense(256, kernel_regularizer=regularizers.l2(l=0.016), activity_regularizer=regularizers.l1(0.006), bias_regularizer=regularizers.l1(0.006), activation='relu'),
+        Dropout(rate=0.45, seed=123),
+        Dense(class_count, activation='softmax')
+    ])
+
+    model.compile(Adamax(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+    model.summary()
+    
+    return

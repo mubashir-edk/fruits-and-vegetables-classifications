@@ -10,6 +10,7 @@ __pycache__/
 *.keras
 *.png
 *.jpeg
+
 # Distribution / packaging
 .Python
 build/

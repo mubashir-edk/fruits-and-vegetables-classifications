@@ -4,9 +4,8 @@ import uvicorn
 
 app = FastAPI()
 
-app.include_router(train.router, prefix="/train")
-app.include_router(test.router, prefix="/test")
-app.include_router(app.router)
+app.include_router(train.router)
+app.include_router(test.router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
