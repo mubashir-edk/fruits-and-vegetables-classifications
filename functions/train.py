@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 import keras
 import time
-from tensorflow.keras.models import Sequential
+from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.keras import regularizers
 from tensorflow.keras.optimizers import Adam, Adamax
@@ -34,17 +34,23 @@ def define_paths(data_dir):
     return filepaths, labels
 
 
+def define_df(files, classes):
+    Fseries = pd.Series(files, name='filepaths')
+    Lseries = pd.Series(classes, name='labels')
+    return pd.concat([Fseries, Lseries], axis=1)
+
+
 # Splitting data
-def split_data(files, classes):
-    stratify = classes
-    train_data, remain_data = train_test_split(files, train_size=0.8, shuffle=True, random_state=123, stratify=stratify)
+def split_data(data_frame):
+    stratify_df = data_frame['labels']
+    train_df, remain_df = train_test_split(data_frame, train_size=0.8, shuffle=True, random_state=123, stratify=stratify_df)
     
     # valid and test dataframe
-    stratify = remain_data['labels']
-    valid_data, test_data = train_test_split(remain_data, test_size=0.5, shuffle=True, random_state=123, stratify=stratify)
-    return train_data, valid_data, test_data
+    stratify_df = remain_df['labels']
+    valid_df, test_df = train_test_split(remain_df, test_size=0.5, shuffle=True, random_state=123, stratify=stratify_df)
+    return train_df, valid_df, test_df
 
-def create_generators(train_data, valid_data, test_data, batch_size):
+def create_generators(train_df, valid_df, test_df, batch_size):
     
     '''
         This function takes train, validation, and test dataframe and fit them into image data generator, 
@@ -58,7 +64,7 @@ def create_generators(train_data, valid_data, test_data, batch_size):
     img_shape = (img_size[0], img_size[1], channels)
     
     # Recommended : use custom function for test data batch size, else we can use normal batch size.
-    ts_length = len(test_data)
+    ts_length = len(test_df)
     test_batch_size = max(sorted([ts_length // n for n in range(1, ts_length + 1) if ts_length % n == 0 and ts_length / n <= 80]))
     test_steps = ts_length // test_batch_size
     
@@ -69,8 +75,8 @@ def create_generators(train_data, valid_data, test_data, batch_size):
     tr_gen = ImageDataGenerator(preprocessing_function=scalar, horizontal_flip=True)
     ts_gen = ImageDataGenerator(preprocessing_function=scalar)
     
-    train_gen = tr_gen.flow_from_directory(
-        train_data,
+    train_gen = tr_gen.flow_from_dataframe(
+        train_df,
         x_col='filepaths',
         y_col='labels',
         target_size=img_size,
@@ -80,8 +86,8 @@ def create_generators(train_data, valid_data, test_data, batch_size):
         batch_size=batch_size
     )
     
-    valid_gen = ts_gen.flow_from_directory(
-        valid_data,
+    valid_gen = ts_gen.flow_from_dataframe(
+        valid_df,
         x_col='filepaths',
         y_col='labels',
         target_size=img_size,
@@ -92,8 +98,8 @@ def create_generators(train_data, valid_data, test_data, batch_size):
     )
     
     # Note: we will use custom test_batch_size and make shuffle=False
-    test_gen = ts_gen.flow_from_directory(
-        test_data,
+    test_gen = ts_gen.flow_from_dataframe(
+        test_df,
         x_col='filepaths',
         y_col='labels',
         target_size=img_size,
@@ -289,122 +295,66 @@ class MyCallback(keras.callbacks.Callback):
 
                         except Exception:
                             print('Invalid')
-                            
-                            
-# data set path
-# data_dir = os.path.dir("../artifacts/dataset/images")
-
-# try:
-#     # Get splitted data
-#     train_df, valid_df, test_df = split_data(data_dir)
-#     # Get Generators
-#     batch_size = 0
-#     train_gen, valid_gen, test_gen = create_generators(
-#         train_df, valid_df, test_df, batch_size)
-
-# except:
-    # print('Invalid Input')
 
 
-# Create Model Structure
-img_size = (224, 224)
-channels = 3
-img_shape = (img_size[0], img_size[1], channels)
-# to define number of classes in dense layer
-class_count = len(list(train_gen.class_indices.keys()))
-
-# create pre-trained model (you can built on pretrained model such as :  efficientnet, VGG , Resnet )
-# we will use efficientnetb3 from EfficientNet family.
-base_model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=img_shape, pooling='max')
-model = Sequential([
-    base_model,
-    BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001),
-    Dense(256, kernel_regularizer=regularizers.l2(l=0.016), activity_regularizer=regularizers.l1(0.006), bias_regularizer=regularizers.l1(0.006), activation='relu'),
-    Dropout(rate=0.45, seed=123),
-    Dense(class_count, activation='softmax')
-])
-
-model.compile(Adamax(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
-model.summary()
-
-# call back parameters
-batch_size = 0   # set batch size for training
-epochs = 40   # number of all epochs in training
-patience = 1  # number of epochs to wait to adjust lr if monitored value does not improve
-# number of epochs to wait before stopping training if monitored value does not improve
-stop_patience = 3
-threshold = 0.9   # if train accuracy is < threshold adjust monitor accuracy, else monitor validation loss
-factor = 0.5   # factor to reduce lr by
-ask_epoch = 5   # number of epochs to run before asking if you want to halt training
-# number of training batch to run per epoch
-batches = int(np.ceil(len(train_gen.labels) / batch_size))
-
-callbacks = [MyCallback(model=model, patience=patience, stop_patience=stop_patience, threshold=threshold, factor=factor, batches=batches, epochs=epochs, ask_epoch=ask_epoch)]
-
-
-# train model
-history = model.fit(x=train_gen, epochs=epochs, verbose=0, callbacks=callbacks, validation_data=valid_gen, validation_steps=None, shuffle=False)
-
-
-# test and evaluate
-ts_length = len(test_df)
-test_batch_size = test_batch_size = max(sorted([ts_length // n for n in range(1, ts_length + 1) if ts_length % n == 0 and ts_length/n <= 80]))
-test_steps = ts_length // test_batch_size
-
-train_score = model.evaluate(train_gen, steps=test_steps, verbose=1)
-valid_score = model.evaluate(valid_gen, steps=test_steps, verbose=1)
-test_score = model.evaluate(test_gen, steps=test_steps, verbose=1)
-
-print("Train Loss: ", train_score[0])
-print("Train Accuracy: ", train_score[1])
-print('-' * 20)
-print("Validation Loss: ", valid_score[0])
-print("Validation Accuracy: ", valid_score[1])
-print('-' * 20)
-print("Test Loss: ", test_score[0])
-print("Test Accuracy: ", test_score[1])
-
-# make predictions
-prediction = model.predict_generator(test_gen)
-y_pred = np.argmax(prediction, axis=1)
-print(y_pred)
-
-
-model_name = model.input_names[0][:-6]
-subject = 'fruits_and_vegetables_classification'
-acc = test_score[1] * 100
-save_path = ''
-
-# Save model
-save_id = str(f'{model_name}-{subject}-{"%.2f" %round(acc, 2)}.h5')
-model_save_loc = os.path.join(save_path, save_id)
-model.save(model_save_loc)
-print(f'model was saved as {model_save_loc}')
-
-# Save weights
-weight_save_id = str(f'{model_name}-{subject}-weights.h5')
-weights_save_loc = os.path.join(save_path, weight_save_id)
-model.save_weights(weights_save_loc)
-print(f'weights were saved as {weights_save_loc}')
-
-def train_model(train_gen, valid_gen, test_gen):
+def training_model(test_df, train_gen, valid_gen, test_gen, batch_size, steps_per_epoch, epochs, patience, stop_patience, threshold, factor, ask_epoch):
     
     img_size = (224, 224)
     channels = 3
     img_shape = (img_size[0], img_size[1], channels)
     # to define number of classes in dense layer
-    class_count = len(list(train_gen.class_indices.keys()))
+    # class_count = len(list(train_gen.class_indices.keys()))
     
     base_model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=img_shape, pooling='max')
     model = Sequential([
         base_model,
         BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001),
-        Dense(256, kernel_regularizer=regularizers.l2(l=0.016), activity_regularizer=regularizers.l1(0.006), bias_regularizer=regularizers.l1(0.006), activation='relu'),
+        Dense(256, activation='relu'),
         Dropout(rate=0.45, seed=123),
-        Dense(class_count, activation='softmax')
+        Dense(4, activation='softmax')
     ])
 
     model.compile(Adamax(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
     model.summary()
     
-    return
+    batches = int(np.ceil(len(train_gen.labels) / batch_size))
+    
+    # callbacks = [MyCallback(model=model, patience=patience, stop_patience=stop_patience, threshold=threshold, factor=factor, batches=batches, epochs=epochs, ask_epoch=ask_epoch)]
+    
+    history = model.fit(train_gen, batch_size=batch_size, steps_per_epoch=steps_per_epoch, epochs=epochs, verbose=0, validation_data=valid_gen, validation_steps=None, shuffle=False)
+    
+    # test and evaluate
+    ts_length = len(test_df)
+    test_batch_size = test_batch_size = max(sorted([ts_length // n for n in range(1, ts_length + 1) if ts_length % n == 0 and ts_length/n <= 80]))
+    test_steps = ts_length // test_batch_size
+    
+    train_score = model.evaluate(train_gen, steps=test_steps, verbose=1)
+    valid_score = model.evaluate(valid_gen, steps=test_steps, verbose=1)
+    test_score = model.evaluate(test_gen, steps=test_steps, verbose=1)
+    
+    # make predictions
+    # prediction = model.predict_generator(test_gen)
+    # y_pred = np.argmax(prediction, axis=1)
+    # print(y_pred)
+    
+    return model, train_score, valid_score, test_score
+
+
+def save_model(model, test_score):
+    
+    model_name = model.input_names[0][:-6]
+    subject = 'fruits_and_vegetables_classification'
+    acc = test_score[1] * 100
+    save_path = '../trained_model'
+
+    # Save model
+    save_id = str(f'{model_name}-{subject}.h5')
+    model_save_loc = os.path.join(save_path, save_id)
+    model.save(model_save_loc)
+    print(f'model was saved as {model_save_loc}')
+
+    # Save weights
+    weight_save_id = str(f'{model_name}-{subject}-weights.h5')
+    weights_save_loc = os.path.join(save_path, weight_save_id)
+    model.save_weights(weights_save_loc)
+    print(f'weights were saved as {weights_save_loc}')
