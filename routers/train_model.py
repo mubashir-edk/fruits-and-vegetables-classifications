@@ -55,7 +55,7 @@ async def train_model():
     print("Test Accuracy: ", test_score[1])
     
     # Step 6 Save the trained model and its model weights
-    save_model(model)
+    save_model(model, test_score)
     
     return train_score, valid_score, test_score
     

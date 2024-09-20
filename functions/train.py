@@ -302,8 +302,6 @@ def training_model(test_df, train_gen, valid_gen, test_gen, batch_size, steps_pe
     img_size = (224, 224)
     channels = 3
     img_shape = (img_size[0], img_size[1], channels)
-    # to define number of classes in dense layer
-    # class_count = len(list(train_gen.class_indices.keys()))
     
     base_model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=img_shape, pooling='max')
     model = Sequential([
@@ -319,7 +317,7 @@ def training_model(test_df, train_gen, valid_gen, test_gen, batch_size, steps_pe
     
     batches = int(np.ceil(len(train_gen.labels) / batch_size))
     
-    # callbacks = [MyCallback(model=model, patience=patience, stop_patience=stop_patience, threshold=threshold, factor=factor, batches=batches, epochs=epochs, ask_epoch=ask_epoch)]
+    callbacks = [MyCallback(model=model, patience=patience, stop_patience=stop_patience, threshold=threshold, factor=factor, batches=batches, epochs=epochs, ask_epoch=ask_epoch)]
     
     history = model.fit(train_gen, batch_size=batch_size, steps_per_epoch=steps_per_epoch, epochs=epochs, verbose=0, validation_data=valid_gen, validation_steps=None, shuffle=False)
     
@@ -332,29 +330,23 @@ def training_model(test_df, train_gen, valid_gen, test_gen, batch_size, steps_pe
     valid_score = model.evaluate(valid_gen, steps=test_steps, verbose=1)
     test_score = model.evaluate(test_gen, steps=test_steps, verbose=1)
     
-    # make predictions
-    # prediction = model.predict_generator(test_gen)
-    # y_pred = np.argmax(prediction, axis=1)
-    # print(y_pred)
-    
     return model, train_score, valid_score, test_score
 
 
 def save_model(model, test_score):
-    
-    model_name = model.input_names[0][:-6]
+
     subject = 'fruits_and_vegetables_classification'
     acc = test_score[1] * 100
-    save_path = '../trained_model'
+    save_path = '/trained_model'
 
     # Save model
-    save_id = str(f'{model_name}-{subject}.h5')
+    save_id = str(f'{subject}.h5')
     model_save_loc = os.path.join(save_path, save_id)
     model.save(model_save_loc)
     print(f'model was saved as {model_save_loc}')
 
     # Save weights
-    weight_save_id = str(f'{model_name}-{subject}-weights.h5')
+    weight_save_id = str(f'{subject}.weights.h5')
     weights_save_loc = os.path.join(save_path, weight_save_id)
     model.save_weights(weights_save_loc)
     print(f'weights were saved as {weights_save_loc}')
