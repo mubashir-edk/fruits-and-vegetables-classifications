@@ -30,7 +30,7 @@ def extract_features(image_to_test, model, class_name_mapping):
         7. round((np.max(predictions[0])), 2) - rounds the value to 2 decimal places
         8. return predicted_class, confidence
     """
-    img = load_img(image_to_test, target_size=(224, 224))  # Ensure target_size matches model input size
+    img = load_img(image_to_test, target_size=(224, 224))
     img_array = img_to_array(img)
     expanded_img_array = np.expand_dims(img_array, axis=0)
     result = model.predict(expanded_img_array)
@@ -46,7 +46,6 @@ async def predict_image(image_data: ImageData):
     model.compile(optimizer='adam', loss=SparseCategoricalCrossentropy(from_logits=True), metrics=['accuracy'])
     model.load_weights("trained_model/fruits_and_vegetables_classification.weights.h5")
 
-    # getting the model input shape (224, 224)
     target_size = model.input_shape[1:3]
     dict_df = pd.read_csv("artifacts/dataset/fruits_and_vegetables-class_dict.csv") 
     class_name_mapping = dict_df['class']
@@ -59,8 +58,8 @@ async def predict_image(image_data: ImageData):
         img_bytes = BytesIO(response.content)
         image = Image.open(img_bytes)
 
-        # Resize the image if needed (for example, to 224x224)
-        target_size = (224, 224)  # Adjust based on your model's requirements
+        # Resize the image
+        target_size = (224, 224)
         image = image.resize(target_size)
 
         # Save the image temporarily to pass it to load_img
