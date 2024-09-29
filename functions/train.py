@@ -123,7 +123,7 @@ def training_model(test_df, train_gen, valid_gen, test_gen, batch_size, steps_pe
         base_model,
         Dense(256, activation='relu'),
         Dense(128, activation='relu'),
-        Dropout(0.4),
+        Dropout(0.2),
         Dense(4, activation='softmax')
     ])
 
@@ -139,7 +139,7 @@ def training_model(test_df, train_gen, valid_gen, test_gen, batch_size, steps_pe
     earlystop_cb = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
     # ReduceLROnPlateau
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.3, patience=3, min_lr=1e-6)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, min_lr=1e-6)
     
     callbacks = [checkpoint_cb, earlystop_cb, reduce_lr]
     

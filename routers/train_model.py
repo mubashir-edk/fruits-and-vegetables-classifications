@@ -24,13 +24,13 @@ async def train_model():
     # Step 3 Split the data(dataframe) in to train, validation and test
     train_df, valid_df, test_df = split_data(data_frame)
 
-    batch_size = 16
+    batch_size = 32
     
     # Step 4 create generators
     train_gen, valid_gen, test_gen = create_generators(train_df, valid_df, test_df, batch_size)
     
     steps_per_epoch = 20
-    epochs = 120
+    epochs = 100
     
     # Step 5 Train the model and after that test and evaluate
     model, train_score, valid_score, test_score = training_model(test_df, train_gen, valid_gen, test_gen, batch_size, steps_per_epoch, epochs)

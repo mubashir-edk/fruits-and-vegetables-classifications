@@ -48,7 +48,7 @@ async def predict_image(image_data: ImageData):
 
     target_size = model.input_shape[1:3]
     dict_df = pd.read_csv("artifacts/dataset/fruits_and_vegetables-class_dict.csv") 
-    class_name_mapping = dict_df['class']
+    class_name_mapping = dict_df['class'].tolist()
     
     try:
         # Fetch the image from the URL
@@ -66,10 +66,6 @@ async def predict_image(image_data: ImageData):
         temp_image_path = "temp_image.jpg"
         image.save(temp_image_path)
 
-        # Load class name mapping
-        dict_df = pd.read_csv("artifacts/dataset/fruits_and_vegetables-class_dict.csv")
-        class_name_mapping = dict_df['class'].tolist()
-
         # predict
         predicted_class, confidence = extract_features(temp_image_path, model, class_name_mapping)
 
@@ -79,6 +75,14 @@ async def predict_image(image_data: ImageData):
         # Ensure confidence is formatted correctly
         if isinstance(confidence, np.float32):
             confidence = float(confidence)  # Convert to standard float
+            
+        confidence_threshold = 0.9
+        
+        if predicted_class not in class_name_mapping or confidence < confidence_threshold:
+            return {
+                "predicted_class": "None",
+                "confidence": confidence
+            }
 
         # Return the prediction result
         return {
