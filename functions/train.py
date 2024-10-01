@@ -1,22 +1,15 @@
-from fastapi import APIRouter
 import os 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import matplotlib.pyplot as plt
-import numpy as np
 import tensorflow as tf
-import keras
-import time
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.losses import CategoricalCrossentropy
 
-router = APIRouter()
 
-# @router.get("/train")
 # Define paths
 def define_paths(data_dir):
     filepaths = []

@@ -1,12 +1,6 @@
 import os
-from fastapi import FastAPI, APIRouter
-import numpy as np
-from functions.train import define_paths
-from functions.train import define_df
-from functions.train import split_data
-from functions.train import create_generators
-from functions.train import training_model
-from functions.train import save_model
+from fastapi import APIRouter
+from functions.train import define_paths, define_df, split_data, create_generators, training_model, save_model
 
 router = APIRouter()
 

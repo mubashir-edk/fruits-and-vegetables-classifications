@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter
 from io import BytesIO
 import os
 from PIL import Image
